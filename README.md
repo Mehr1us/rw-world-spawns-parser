@@ -6,6 +6,7 @@ then run the following on a cmd opened in same folder:
 ```bash
 py world-parser.py -file "world_XX.txt"
 ```
+outputs a json in same folder called `parsed.json`
 
 ## flags
 | flag     							 | arg     | desc                        										    |  
