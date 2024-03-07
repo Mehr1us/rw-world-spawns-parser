@@ -57,10 +57,18 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False):
 		creature_list = []
 		for line in spawns_data[token]:
 			start_index = 0
-			try: start_index = line.index(')') + 1
+			try: 
+				start_index = line.index(')') + 1				
 			except ValueError: 
 				if do_log:print('doesn\'t contain end bracket')
-			if start_index == 0 or scug in line[:start_index]:
+			cond = line[:start_index][1:-1]
+			invert = False
+			if cond[:2] == 'X-':
+				invert = True
+				cond = cond[2:]
+			scugs = cond.split(',')
+
+			if (start_index == 0) or (scug in scugs if not invert else scug not in scugs):
 				for creature in line[start_index:].split(', '):
 					if creature not in creature_list: creature_list.append(creature)
 		data[token] = creature_list
