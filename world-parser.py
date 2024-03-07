@@ -1,5 +1,4 @@
-import time, re, os, sys, json
-from enum import Enum
+import re, sys, json
 
 std = "DEFAULT"
 lineage = "LINEAGE"
@@ -131,8 +130,6 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 			if crline[precycle] != None: data[precycle].append(crline[precycle])
 			if crline[night] != None: data[night].append(crline[night])
 	return data
-
-
 
 if __name__ == "__main__":
 	main()
