@@ -3,8 +3,6 @@ import re, sys, json
 
 std = "DEFAULT"
 lineage = "LINEAGE"
-precycle = "PRECYCLE"
-night = "NIGHT" 
 
 def main():
 	args = sys.argv[1:]
@@ -53,9 +51,10 @@ def main():
 		print('file not found')
 
 def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False):
-	data = {std:[],lineage:[],precycle:[],night:[]}
-	token_list = [std,lineage,precycle,night]
+	data = {}
+	token_list = spawns_data.keys()
 	for token in token_list:
+		data[token] = []
 		creature_list = []
 		for line in spawns_data[token]:
 			start_index = 0
@@ -77,12 +76,12 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False):
 	return data
 
 def seperate_creature_lines(lines:list, do_log:bool=False):
-	data = {std:[],lineage:[],precycle:[],night:[]}
+	data = {std:[],lineage:[]}
 
 	#populate data lines based on type of line
 	for line in lines:
 		if line != "" and line[:2] != "//":
-			crline = {std:None,lineage:None,precycle:None,night:None}
+			crline = {std:None,lineage:None}
 			start_index = 0
 			try: start_index = line.index(')') + 1
 			except ValueError: 
@@ -100,7 +99,7 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 					creature = creature.strip()
 
 					name = ""
-					name_search = re.search('(\w+)-[\d\{\.\}-]+$', creature, re.MULTILINE)
+					name_search = re.search('(\w+)-*[\d\{\.\}-]*$', creature, re.MULTILINE)
 					if name_search:
 						name = name_search.group(1)
 					elif do_log: print('invalid creature token found: ' + creature)
@@ -121,8 +120,7 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 					# get type for creature token
 					token = "error"
 					if nonstd == None:token = std
-					elif nonstd.group(1) == 'PreCycle':token = precycle
-					elif nonstd.group(1) == 'Night':token = night
+					else: token = nonstd.group(1).lower()
 
 					# append to respective line
 					name = ""
@@ -131,15 +129,15 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 						name = name_search.group(1)
 					elif do_log: print('invalid creature token found: ' + creature)
 					if name != 'NONE':
+						if token not in crline.keys(): crline[token] = None
 						if crline[token] == None:
 							crline[token] = conditional + name
 						else:
 							crline[token] += ", " + name
-
-			if crline[std] != None: data[std].append(crline[std])
-			if crline[lineage] != None: data[lineage].append(crline[lineage])
-			if crline[precycle] != None: data[precycle].append(crline[precycle])
-			if crline[night] != None: data[night].append(crline[night])
+			for key in crline.keys():
+				if key not in data.keys(): data[key] = []
+				if crline[key] != None: data[key].append(crline[key])
+				if do_log: print(str(crline[key]) + "\t\t<"+key+">")
 	return data
 
 if __name__ == "__main__":
