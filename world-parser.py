@@ -29,6 +29,8 @@ def main():
 			elif arg[0] == '+':
 				if arg[1:] not in scugs:
 					scugs.append(arg[1:])
+	acronym_search = re.search("world_(\w+?).txt", file_path)
+	acronym = acronym_search.group(1) if acronym_search else "acronym not found"
 
 	if file_path == "":
 		print("no file path specified")
@@ -46,7 +48,7 @@ def main():
 				if scug == "" or scug == None:continue
 				data[scug] = get_scug_specific_spawns(scug, spawns_data, do_log)
 
-			json.dump(data, open("parsed.json", "w", encoding="utf-8"), indent=4)
+			json.dump({"acronym":acronym, "spawns":data}, open("parsed.json", "w", encoding="utf-8"), indent=4)
 	except FileNotFoundError as e:
 		print('file not found')
 
