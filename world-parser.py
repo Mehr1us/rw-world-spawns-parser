@@ -81,7 +81,7 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 
 	#populate data lines based on type of line
 	for line in lines:
-		if line != "":
+		if line != "" and line[:2] != "//":
 			crline = {std:None,lineage:None,precycle:None,night:None}
 			start_index = 0
 			try: start_index = line.index(')') + 1
