@@ -7,7 +7,8 @@ lineage = "LINEAGE"
 def main():
 	args = sys.argv[1:]
 
-	file_path:str = ""
+	world_file_path:str = ""
+	map_file_path:str = ""
 	do_log:bool = False
 	scugs = ['White','Yellow','Red','Gourmand','Artificer','Spear','Rivulet','Saint','Inv']
 
@@ -18,8 +19,11 @@ def main():
 			if arg[0] == '-':
 				# arg pair possible to check for arg
 				if (i + 1) < len(args) and args[i+1][0] != '-' and args[i+1][0] != '+':
-					if arg == '-file' or arg == '-path' or arg == '-world':
-						file_path = args[i+1]
+					if arg == '-file' or arg == '-path' or arg == '-world' or arg == '-map':
+						if re.search('world_\w+.txt$', args[i+1], re.DOTALL | re.MULTILINE):
+							world_file_path = args[i+1]
+						if re.search('map_\w+.txt$', args[i+1], re.DOTALL | re.MULTILINE):
+							map_file_path = args[i+1]
 					if arg == '-char' or arg == '-scug' or arg == '-slug':
 						scugs = [args[i+1]]
 				if arg == '-debug':
@@ -27,36 +31,79 @@ def main():
 			elif arg[0] == '+':
 				if arg[1:] not in scugs:
 					scugs.append(arg[1:])
-	acronym_search = re.search("world_(\w+?).txt", file_path)
+	acronym_search = re.search("world_(\w+?).txt", world_file_path)
 	acronym = acronym_search.group(1) if acronym_search else "acronym not found"
 
-	if file_path == "":
+	if world_file_path == "":
 		print("no file path specified")
 		return
+	room_subregions = {'list':['NONE']}
+	has_subregions = False
+	if map_file_path == "":
+		if do_log: print("no map file specified")
+	else:
+		try:
+			map_file = open(map_file_path, 'r')
+			rooms = map_file.read().splitlines()
+			for room in rooms:
+				if room == "":continue
+				
+				room_name = ""
+				try: 
+					room_name = room[:room.index(':')]
+				except ValueError: 
+					if do_log:print('room line doesn\'t contain semicolon')
+				if room_name in ['','Connection']:continue
+
+				subregion = ""
+				try: 
+					subregion = room[room.rindex('<') + 1:]
+				except ValueError: 
+					if do_log:print('room line doesn\'t contain lessthan')
+				if subregion != '' and do_log: print(room_name + " : " + subregion)
+				if subregion != '' and subregion not in room_subregions['list']: room_subregions['list'].append(subregion)
+				room_subregions[room_name.upper().strip()] = (0 if subregion not in room_subregions['list'] else room_subregions['list'].index(subregion))
+		except FileNotFoundError as e:
+			print(e)
+		has_subregions = len(room_subregions['list']) > 0
 	try:
-		file = open(file_path, 'r')
+		file = open(world_file_path, 'r')
 		spawns_search = re.search("(?<=CREATURES)(.+)(?=END CREATURES)", file.read(), re.DOTALL)
 		file.close()
 
 		if spawns_search:
 			data = {}
 			spawns:str = spawns_search.group(1)
-			spawns_data:dict = seperate_creature_lines(spawns.splitlines(), do_log)
+			spawns_data:dict = seperate_creature_lines(spawns.splitlines(), do_log, has_subregions, room_subregions)
 			for scug in scugs:
 				if scug == "" or scug == None:continue
-				data[scug] = get_scug_specific_spawns(scug, spawns_data, do_log)
+				data[scug] = get_scug_specific_spawns(scug, spawns_data, do_log, has_subregions, room_subregions)
 
 			json.dump({"acronym":acronym, "spawns":data}, open("parsed.json", "w", encoding="utf-8"), indent=4)
 	except FileNotFoundError as e:
 		print('file not found')
 
-def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False):
+def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False, seperate_into_subregions:bool=False, subregions:dict=None):
 	data = {}
 	token_list = spawns_data.keys()
+	if seperate_creature_lines:
+		data['NONE'] = {}
+		for sub in subregions['list']:
+			data[sub] = {}
 	for token in token_list:
-		data[token] = []
 		creature_list = []
-		for line in spawns_data[token]:
+		if seperate_into_subregions:
+			creature_list = {}
+			creature_list['NONE'] = []
+			for sub in subregions['list']:
+				creature_list[sub] = []
+		else: data[token] = []
+		for line_ in spawns_data[token]:
+			line = line_
+			subregion = None
+			if seperate_creature_lines: 
+				line = line_[0]
+				subregion = subregions['list'][int(line_[1])]
 			start_index = 0
 			try: 
 				start_index = line.index(')') + 1				
@@ -71,11 +118,30 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False):
 
 			if (start_index == 0) or (scug in scugs if not invert else scug not in scugs):
 				for creature in line[start_index:].split(', '):
-					if creature not in creature_list: creature_list.append(creature)
-		data[token] = creature_list
-	return data
+					if not seperate_creature_lines:
+						if creature not in creature_list: 
+							creature_list.append(creature)
+					elif creature not in creature_list[subregion]: creature_list[subregion].append(creature)
+		if not seperate_into_subregions:
+			data[token] = creature_list
+		else:
+			for key in creature_list.keys():
+				if len(creature_list[key]) != 0:
+					data[key][token] = creature_list[key]
+	# clean up structure
+	data_out = {}
 
-def seperate_creature_lines(lines:list, do_log:bool=False):
+	for key in data.keys():
+		if len(data[key].keys()) != 0:
+			data_out[key] = data[key]
+		if seperate_creature_lines:
+			for key_ in data[key].keys():
+				if len(data[key][key_]) != 0:
+					data_out[key][key_] = data[key][key_]
+
+	return data_out
+
+def seperate_creature_lines(lines:list, do_log:bool=False, seperate_into_subregions:bool=False, subregions:dict=None):
 	data = {std:[],lineage:[]}
 
 	#populate data lines based on type of line
@@ -86,12 +152,20 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 			try: start_index = line.index(')') + 1
 			except ValueError: 
 				if do_log:print('doesn\'t contain end bracket')
-			line_ = line[start_index:]
+			line_:str = line[start_index:]
 			conditional = line[:start_index]
 			
 			#line is for lineages
 			if line_[:line_.index(' ')] == 'LINEAGE':	
 				line_ = line_[line_.index(':') + 2:]
+
+				room_name = line_[:line_.index(':') + 2]
+				if '}' in room_name: room_name = room_name[room_name.index('}')+1:]
+				room_name = room_name.upper().strip()
+				subregion_index = 0
+				if room_name in subregions.keys():
+					subregion_index = subregions[room_name]
+
 				line_ = line_[line_.index(':') + 2:]
 				line_ = line_[line_.index(':') + 2:]
 				for creature in line_.split(','):
@@ -104,12 +178,22 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 						name = name_search.group(1)
 					elif do_log: print('invalid creature token found: ' + creature)
 					if name != 'NONE':
-						if crline[lineage] == None:
-							crline[lineage] = conditional + name
+						if token not in crline.keys(): crline[token] = None
+						if crline[token] == None:
+							if not seperate_into_subregions: crline[token] = conditional + name
+							else: crline[token] = (conditional + name, subregion_index)
 						else:
-							crline[lineage] += ", " + name
+							if not seperate_into_subregions: crline[token] += ", " + name
+							else: crline[token] = (crline[token][0] + ", " + name, subregion_index)
 			else:
 				# for non-Lineage lines
+				room_name = line_[:line_.index(':')]
+				if '}' in room_name: room_name = room_name[room_name.index('}')+1:]
+				room_name = room_name.upper().strip()
+				subregion_index = 0
+				if room_name in subregions.keys():
+					subregion_index = subregions[room_name]
+
 				creatures = line_[line_.index(':') + 2:].split(',')
 				for creature in creatures:
 					if creature == None:continue
@@ -131,9 +215,11 @@ def seperate_creature_lines(lines:list, do_log:bool=False):
 					if name != 'NONE':
 						if token not in crline.keys(): crline[token] = None
 						if crline[token] == None:
-							crline[token] = conditional + name
+							if not seperate_into_subregions: crline[token] = conditional + name
+							else: crline[token] = (conditional + name, subregion_index)
 						else:
-							crline[token] += ", " + name
+							if not seperate_into_subregions: crline[token] += ", " + name
+							else: crline[token] = (crline[token][0] + ", " + name, subregion_index)
 			for key in crline.keys():
 				if key not in data.keys(): data[key] = []
 				if crline[key] != None: data[key].append(crline[key])

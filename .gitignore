@@ -1,2 +1,3 @@
-world*.txt
+world_*.txt
+map_*.txt
 *.json
