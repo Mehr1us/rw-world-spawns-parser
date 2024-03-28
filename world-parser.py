@@ -77,16 +77,17 @@ def main():
 			spawns_data:dict = seperate_creature_lines(spawns.splitlines(), do_log, has_subregions, room_subregions)
 			for scug in scugs:
 				if scug == "" or scug == None:continue
-				data[scug] = get_scug_specific_spawns(scug, spawns_data, do_log, has_subregions, room_subregions)
+				data[scug] = get_scug_specific_spawns(scug.lower(), spawns_data, do_log, has_subregions, room_subregions)
 
 			json.dump({"acronym":acronym, "spawns":data}, open("parsed.json", "w", encoding="utf-8"), indent=4)
 	except FileNotFoundError as e:
 		print('file not found')
 
 def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False, seperate_into_subregions:bool=False, subregions:dict=None):
+	if do_log: print(spawns_data)
 	data = {}
 	token_list = spawns_data.keys()
-	if seperate_creature_lines:
+	if seperate_into_subregions:
 		data['NONE'] = {}
 		for sub in subregions['list']:
 			data[sub] = {}
@@ -101,7 +102,7 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False, sepe
 		for line_ in spawns_data[token]:
 			line = line_
 			subregion = None
-			if seperate_creature_lines: 
+			if seperate_into_subregions: 
 				line = line_[0]
 				subregion = subregions['list'][int(line_[1])]
 			start_index = 0
@@ -114,12 +115,16 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False, sepe
 			if cond[:2] == 'X-':
 				invert = True
 				cond = cond[2:]
-			scugs = cond.split(',')
-
-			if (start_index == 0) or (scug in scugs if not invert else scug not in scugs):
+				if do_log: print('conditional inverted')
+			scugs = [x.lower() for x in cond.split(',')]
+			#print("start_index == 0: " + str(start_index == 0))
+			#print("(" + scug + " " + ("not " if invert else "") + "in " + str(scugs) + "): " + str((scug in scugs) if not invert else (scug not in scugs)))
+			if (start_index == 0) or ((scug in scugs) if not invert else (scug not in scugs)):
 				for creature in line[start_index:].split(', '):
-					if not seperate_creature_lines:
+					if not seperate_into_subregions:
 						if creature not in creature_list: 
+							if do_log: print("adding " + creature + " to creature list for " + scug)
+							if do_log: print("^ found in following line: " + line)
 							creature_list.append(creature)
 					elif creature not in creature_list[subregion]: creature_list[subregion].append(creature)
 		if not seperate_into_subregions:
@@ -131,15 +136,16 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False, sepe
 	# clean up structure
 	data_out = {}
 
-	for key in data.keys():
-		if len(data[key].keys()) != 0:
-			data_out[key] = data[key]
-		if seperate_creature_lines:
-			for key_ in data[key].keys():
-				if len(data[key][key_]) != 0:
-					data_out[key][key_] = data[key][key_]
-
-	return data_out
+	if seperate_into_subregions:
+		for key in data.keys():
+			if len(data[key].keys()) != 0:
+				data_out[key] = data[key]
+			if seperate_into_subregions:
+				for key_ in data[key].keys():
+					if len(data[key][key_]) != 0:
+						data_out[key][key_] = data[key][key_]
+		return data_out
+	else: return data
 
 def seperate_creature_lines(lines:list, do_log:bool=False, seperate_into_subregions:bool=False, subregions:dict=None):
 	data = {std:[],lineage:[]}
@@ -155,6 +161,8 @@ def seperate_creature_lines(lines:list, do_log:bool=False, seperate_into_subregi
 			line_:str = line[start_index:]
 			conditional = line[:start_index]
 			
+			if do_log: print(line + " ==> " + conditional + ", " + line_[:line_.index(' ')] + ", " + line_[line_.index(':') + 2:])
+
 			#line is for lineages
 			if line_[:line_.index(' ')] == 'LINEAGE':	
 				line_ = line_[line_.index(':') + 2:]
@@ -171,6 +179,8 @@ def seperate_creature_lines(lines:list, do_log:bool=False, seperate_into_subregi
 				for creature in line_.split(','):
 					if creature == None:continue
 					creature = creature.strip()
+
+					token = "LINEAGE"
 
 					name = ""
 					name_search = re.search('(\w+)-*[\d\{\.\}-]*$', creature, re.MULTILINE)
