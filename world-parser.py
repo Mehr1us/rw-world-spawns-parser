@@ -136,16 +136,14 @@ def get_scug_specific_spawns(scug:str, spawns_data:dict, do_log:bool=False, sepe
 	# clean up structure
 	data_out = {}
 
-	if seperate_into_subregions:
-		for key in data.keys():
-			if len(data[key].keys()) != 0:
-				data_out[key] = data[key]
-			if seperate_into_subregions:
-				for key_ in data[key].keys():
-					if len(data[key][key_]) != 0:
-						data_out[key][key_] = data[key][key_]
-		return data_out
-	else: return data
+	for key in data.keys():
+		if (type(data[key]) == dict and len(data[key].keys()) != 0 ) or (type(data[key]) == list and len(data[key]) != 0):
+			data_out[key] = data[key]
+		if seperate_into_subregions:
+			for key_ in data[key].keys():
+				if len(data[key][key_]) != 0:
+					data_out[key][key_] = data[key][key_]
+	return data_out
 
 def seperate_creature_lines(lines:list, do_log:bool=False, seperate_into_subregions:bool=False, subregions:dict=None):
 	data = {std:[],lineage:[]}
